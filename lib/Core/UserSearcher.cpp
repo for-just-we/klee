@@ -122,10 +122,10 @@ Searcher *getNewSearcher(Searcher::CoreSearchType type, RNG &rng, PTree &process
     case Searcher::NURS_CPICnt: searcher = new WeightedRandomSearcher(WeightedRandomSearcher::CPInstCount, rng); break;
     case Searcher::NURS_QC: searcher = new WeightedRandomSearcher(WeightedRandomSearcher::QueryCost, rng); break;
     // support subpath guided search
-    case Searcher::SGS_1: searcher = new SubpathGuidedSearcher(executor, 1); break;
-    case Searcher::SGS_2: searcher = new SubpathGuidedSearcher(executor, 2); break;
-    case Searcher::SGS_4: searcher = new SubpathGuidedSearcher(executor, 4); break;
-    case Searcher::SGS_8: searcher = new SubpathGuidedSearcher(executor, 8); break;
+    case Searcher::SGS_1: searcher = new SubpathGuidedSearcher(executor, 0); break;
+    case Searcher::SGS_2: searcher = new SubpathGuidedSearcher(executor, 1); break;
+    case Searcher::SGS_4: searcher = new SubpathGuidedSearcher(executor, 2); break;
+    case Searcher::SGS_8: searcher = new SubpathGuidedSearcher(executor, 3); break;
   }
 
   return searcher;
