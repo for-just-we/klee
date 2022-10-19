@@ -286,6 +286,13 @@ namespace {
            cl::desc("Link the llvm libc++ library into the bitcode (default=false)"),
            cl::init(false),
            cl::cat(LinkCat));
+
+  cl::opt<bool>
+  FeatureExtract("feature-extract",
+           cl::desc("Whether to do feature extraction during execution (default=false),"
+                    "must be set to true if using machine learning based search (--search=ml)"),
+           cl::init(false),
+           cl::cat(TestGenCat));
 }
 
 namespace klee {
@@ -488,6 +495,9 @@ void KleeHandler::processTestCase(const ExecutionState &state,
     unsigned id = ++m_numTotalTests;
 
     if (success) {
+      // genTestcase++ if success, support learch
+      Interpreter::handleGenerateTestCase(state);
+
       KTest b;
       b.numArgs = m_argc;
       b.args = m_argv;
@@ -1404,7 +1414,7 @@ int main(int argc, char **argv, char **envp) {
   IOpts.MakeConcreteSymbolic = MakeConcreteSymbolic;
   KleeHandler *handler = new KleeHandler(pArgc, pArgv);
   Interpreter *interpreter =
-    theInterpreter = Interpreter::create(ctx, IOpts, handler);
+    theInterpreter = Interpreter::create(ctx, IOpts, handler, FeatureExtract);
   assert(interpreter);
   handler->setInterpreter(interpreter);
 

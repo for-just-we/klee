@@ -51,8 +51,10 @@ cl::list<Searcher::CoreSearchType> CoreSearch(
         clEnumValN(Searcher::SGS_1, "sgs:1", "length 1 - Subpath-Guided Search"),
         clEnumValN(Searcher::SGS_2, "sgs:2", "length 2 - Subpath-Guided Search"),
         clEnumValN(Searcher::SGS_4, "sgs:4", "length 4 - Subpath-Guided Search"),
-        clEnumValN(Searcher::SGS_8, "sgs:8", "length 8 - Subpath-Guided Search")),
+        clEnumValN(Searcher::SGS_8, "sgs:8", "length 8 - Subpath-Guided Search"),
+        clEnumValN(Searcher::ML, "ml", "Machine Learning Search")),
     cl::cat(SearchCat));
+
 
 cl::opt<bool> UseIterativeDeepeningTimeSearch(
     "use-iterative-deepening-time-search",
@@ -81,6 +83,37 @@ cl::opt<std::string> BatchTime(
     cl::desc("Amount of time to batch when using "
              "--use-batching-search.  Set to 0s to disable (default=5s)"),
     cl::init("5s"),
+    cl::cat(SearchCat));
+
+// add support for machine learning based search
+cl::opt<std::string> ModelType(
+    "model-type",
+    cl::desc("Type of the machine learning model"),
+    cl::init(""),
+    cl::cat(SearchCat));
+
+cl::opt<std::string> ModelPath(
+     "model-path",
+     cl::desc("Path of the machine learning model"),
+     cl::init(""),
+     cl::cat(SearchCat));
+
+cl::opt<std::string> ScriptPath(
+     "script-path",
+     cl::desc("path that python script place"),
+     cl::init(""),
+     cl::cat(SearchCat));
+
+cl::opt<std::string> PyPath(
+     "py-path",
+     cl::desc("path to corresponding python interpreter, default using system default interpreter"),
+     cl::init(""),
+     cl::cat(SearchCat));
+
+cl::opt<bool> Sampling(
+    "sampling",
+    cl::desc("Whether to do sampling for ML searcher (default=false)"),
+    cl::init(false),
     cl::cat(SearchCat));
 
 } // namespace
@@ -126,6 +159,8 @@ Searcher *getNewSearcher(Searcher::CoreSearchType type, RNG &rng, PTree &process
     case Searcher::SGS_2: searcher = new SubpathGuidedSearcher(executor, 1); break;
     case Searcher::SGS_4: searcher = new SubpathGuidedSearcher(executor, 2); break;
     case Searcher::SGS_8: searcher = new SubpathGuidedSearcher(executor, 3); break;
+    // add support for machine learning based search
+    case Searcher::ML: searcher = new MLSearcher(executor, ModelType, ModelPath, ScriptPath, PyPath, Sampling); break;
   }
 
   return searcher;

@@ -21,10 +21,14 @@
 #include "klee/Solver/Solver.h"
 #include "klee/System/Time.h"
 
+#include "llvm/IR/BasicBlock.h"
+
 #include <map>
 #include <memory>
 #include <set>
 #include <vector>
+#include <unordered_set>
+#include <unordered_map>
 
 namespace klee {
 class Array;
@@ -158,6 +162,19 @@ private:
 
 public:
   using stack_ty = std::vector<StackFrame>;
+
+  // add support for machine learning based search
+  std::vector<double> feature;
+  std::vector<std::pair<long, std::vector<double>>> features;
+  std::vector<double> hidden_state;
+  double predicted_reward;
+  // other feature used in learch
+  static std::unordered_set<std::string> allCoveredSource;
+  static unsigned genTestCases;
+
+  std::unordered_set<std::string> coveredSource;
+  std::unordered_set<unsigned> coveredInsts;
+  std::unordered_set<llvm::BasicBlock*> coveredBlocks;
 
   // Either the current subpath or the current path
   subpath_ty takenBranches;

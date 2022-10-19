@@ -98,9 +98,12 @@ protected:
 public:
   virtual ~Interpreter() {}
 
+  static void handleGenerateTestCase(const ExecutionState &state);
+
   static Interpreter *create(llvm::LLVMContext &ctx,
                              const InterpreterOptions &_interpreterOpts,
-                             InterpreterHandler *ih);
+                             InterpreterHandler *ih,
+                             bool featureExtract = false);
 
   /// Register the module to be executed.
   /// \param modules A list of modules that should form the final

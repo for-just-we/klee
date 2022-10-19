@@ -76,7 +76,9 @@ namespace klee {
       SGS_1,
       SGS_2,
       SGS_4,
-      SGS_8
+      SGS_8,
+
+      ML
     };
   };
 
@@ -333,6 +335,43 @@ namespace klee {
     void printName(llvm:: raw_ostream &os) override {
       os << "New Searcher\n";
     }
+  };
+
+  // add support for learch machine learning based search
+  class MLSearcher final: public Searcher {
+  public:
+      enum ModelType {
+          Linear,
+          Feedforward,
+          RNN
+      };
+
+  private:
+      Executor& executor;
+      std::vector<ExecutionState*> states;
+      ModelType type;
+      bool sampling;
+      long featureIndex = 0;
+
+  public:
+      explicit MLSearcher(Executor &_executor, std::string model_type, std::string model_path,
+                          std::string scirpt_path, std::string py_path, bool _sampling);
+      ~MLSearcher();
+
+      ExecutionState &selectState() override;
+
+      void addFeature(ExecutionState *state);
+
+      void update(ExecutionState *current,
+                  const std::vector<ExecutionState *> &addedStates,
+                  const std::vector<ExecutionState *> &removedStates) override;
+
+      bool empty() override { return states.empty(); }
+
+      void printName(llvm::raw_ostream &os) override {
+          os << "<MLSearcher>"
+          << "</MLSearcher>\n";
+      }
   };
 } // klee namespace
 

@@ -32,6 +32,8 @@
 #if LLVM_VERSION_CODE < LLVM_VERSION(8, 0)
 #include "llvm/IR/CallSite.h"
 #endif
+#include "llvm/IR/DebugInfoMetadata.h"
+
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InlineAsm.h"
@@ -351,6 +353,21 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
     if (UseCallPaths)
       theStatisticManager->setContext(&sf.callPathNode->statistics);
 
+    // add support for features used in learch
+    if (executor.featureExtract) {
+        const DebugLoc &debugLoc = inst->getDebugLoc();
+        if (debugLoc.get() != nullptr) {
+            std::string directory = debugLoc.get()->getDirectory().str();
+            std::string filePath = debugLoc.get()->getFilename().str();
+            int line = debugLoc.getLine();
+            std::string cov = directory + filePath + std::to_string(line);
+            if (ExecutionState::allCoveredSource.find(cov) == ExecutionState::allCoveredSource.end()) {
+                es.coveredSource.insert(cov);
+                ExecutionState::allCoveredSource.insert(cov);
+            }
+        }
+    }
+
     if (es.instsSinceCovNew)
       ++es.instsSinceCovNew;
 
@@ -361,11 +378,15 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
         //
         // FIXME: This trick no longer works, we should fix this in the line
         // number propogation.
-          es.coveredLines[&ii.file].insert(ii.line);
-	es.coveredNew = true;
+        es.coveredLines[&ii.file].insert(ii.line);
+        es.coveredNew = true;
         es.instsSinceCovNew = 1;
-	++stats::coveredInstructions;
-	stats::uncoveredInstructions += (uint64_t)-1;
+        ++stats::coveredInstructions;
+        stats::uncoveredInstructions += (uint64_t)-1;
+
+        // add support for features used in learch
+        if (executor.featureExtract)
+            es.coveredInsts.insert(ii.id);
       }
     }
   }

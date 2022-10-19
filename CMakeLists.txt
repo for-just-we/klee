@@ -11,6 +11,11 @@
 # Minimum CMake version and policies
 ###############################################################################
 cmake_minimum_required(VERSION 3.9.0)
+
+# should link with python lib because ML search is done by python code
+include_directories(${PYTHON_INCLUDE_DIRS} ${NUMPY_INCLUDE_DIRS})
+link_libraries(${LIB_PYTHON} stdc++fs)
+
 if (POLICY CMP0054)
   cmake_policy(SET CMP0054 NEW)
 endif()

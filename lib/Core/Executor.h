@@ -104,6 +104,8 @@ public:
   RNG theRNG;
 
 private:
+  // add support for feature extract, support machine learning based search
+  bool featureExtract;
   // add support for subpath-guided search
   std::vector<subpathCount_ty> subpathCounts;
 
@@ -484,7 +486,7 @@ private:
 
 public:
   Executor(llvm::LLVMContext &ctx, const InterpreterOptions &opts,
-      InterpreterHandler *ie);
+      InterpreterHandler *ie, bool _featureExtract = false);
   virtual ~Executor();
 
   // add support for subpath guided search
@@ -560,6 +562,11 @@ public:
 
   MergingSearcher *getMergingSearcher() const { return mergingSearcher; };
   void setMergingSearcher(MergingSearcher *ms) { mergingSearcher = ms; };
+
+  // add feature extract process, support machine learning based search
+  void getStateFeatures(ExecutionState *es);
+
+  bool getFeatureExtract();
 };
   
 } // End klee namespace
