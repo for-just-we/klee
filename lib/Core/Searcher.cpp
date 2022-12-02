@@ -30,8 +30,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
 
-#include <Python.h>
-
 #include <cassert>
 #include <cmath>
 
@@ -601,146 +599,33 @@ void SubpathGuidedSearcher::update(ExecutionState *current,
 
 
 // add support for learch machine learning based search
-MLSearcher::MLSearcher(Executor &_executor, std::string model_type, std::string model_path,
-                       std::string scirpt_path, std::string py_path, bool _sampling) :
-    executor(_executor), sampling(_sampling) {
-    // execute init_model in model.py
-    // 设置python解释器路径，默认会使用环境变量中的
-    if (py_path.empty()){
-        wchar_t* _py_path = new wchar_t[py_path.size() + 1];
-        swprintf(_py_path, py_path.size() + 1, L"%s", py_path.c_str());
-        Py_SetPythonHome(_py_path);
-        klee_message("KLEE: using python interpreter: %s\n", py_path.c_str());
-    }
-    // 初始化python解释器.C/C++中调用Python之前必须先初始化解释器
-    Py_Initialize();
-    // lock
-    PyGILState_STATE gstate = PyGILState_Ensure();
-    // 2、初始化python系统文件路径，保证可以访问到 .py文件
-    PyRun_SimpleString("import sys");
-    std::string code = "sys.path.append('";
-    code += scirpt_path;
-    code += "')";
-    PyRun_SimpleString(code.c_str());
-    // 初始化使用的变量
-    klee_message("KLEE: load python module: %s/model.py", scirpt_path.c_str());
-    PyObject *pName = PyUnicode_FromString("model"); // import from model.py
-    PyObject *pModule = PyImport_Import(pName); // representing modules in model.py
-    if (pModule == NULL)
-        klee_error("unable to load model.py");
-
-    if (model_type == "linear")
-        type = Linear;
-    else if (model_type == "feedforward")
-        type = Feedforward;
-    else if (model_type == "rnn")
-        type = RNN;
-    // all init_model function in learch/model.py to load corresponding model
-    klee_message("KLEE: load pytorch model: %s", model_path.c_str());
-    PyObject* pArgs = PyTuple_New(2);
-    PyTuple_SetItem(pArgs, 0, PyBytes_FromString(model_type.c_str()));
-    PyTuple_SetItem(pArgs, 1, PyBytes_FromString(model_path.c_str()));
-    klee_message("KLEE: execute init_model function in model.py");
-    PyObject* pInitFunc = PyObject_GetAttrString(pModule, "init_model"); // load init_model function
-    PyObject_CallObject(pInitFunc, pArgs);
-    klee_message("KLEE: init_model done\n");
-
-    Py_DECREF(pModule);
-    Py_DECREF(pName);
-    Py_DECREF(pArgs);
-    Py_DECREF(pInitFunc);
-    // release lock
-    PyGILState_Release(gstate);
-}
-
-MLSearcher::~MLSearcher() {
-    // 结束python接口初始化
-    klee_message("finalize python interpreter");
-    Py_Finalize();
+MLSearcher::MLSearcher(Executor &_executor, std::string model_path) :
+    executor(_executor), model(model_path) {
 }
 
 ExecutionState &MLSearcher::selectState() {
-    PyGILState_STATE gstate = PyGILState_Ensure();
     int batch_size = 0;
-    // features = list(), shape = [num_state, feature_size], the input to model, an element is a feature of a single state
-    // hiddens = list(), and is only used in RNN model
-    PyObject *features = PyList_New(0), *hiddens = PyList_New(0);
+    ExecutionState *selection = NULL;
+    double current_max = -100000000.0;
+    bool current_set = false;
     // prepare input data to model, shape = [num_state, feature_size]
     for (ExecutionState* state : states) {
         ++batch_size;
-        PyObject* feature = PyList_New(0); // feature for a single state
+        vector<double> feature; // feature for a single state
         executor.getStateFeatures(state);
         for (uint i=2; i<state->feature.size(); i++)
-            PyList_Append(feature, PyFloat_FromDouble(state->feature[i])); // feature.append(state->feature[i])
-        PyList_Append(features, feature); // features.append(feature)
-        if (type == RNN) {
-            PyObject* hidden = PyList_New(0); // hidden = list()
-            for (uint i=0; i<state->hidden_state.size(); i++)  // for i in range(state.hidden_state)
-                PyList_Append(hidden, PyFloat_FromDouble(state->hidden_state[i])); // hidden.append(state.hidden_state[i])
-            PyList_Append(hiddens, hidden); // hiddens.append(hidden)
-        }
-    }
+            feature.push_back(state->feature[i]); // feature.append(state->feature[i])
+        nc::NdArray<double> rewards = model.forward(feature);
+        state->predicted_reward = rewards[0, 0];
 
-    if (batch_size > 0) {
-        PyObject* pArgs = PyTuple_New(2);
-        PyTuple_SetItem(pArgs, 0, features);
-        PyTuple_SetItem(pArgs, 1, hiddens);
-        PyObject *pName = PyUnicode_FromString("model");
-        PyObject *pModule = PyImport_Import(pName);
-        if (pModule == NULL)
-            klee_error("unable to load model.py");
-        // klee_message("KLEE: predict states");
-        PyObject *pCallFunc = PyObject_GetAttrString(pModule, "predict");
-        // call function predict of model.py
-        PyObject* res = PyObject_CallObject(pCallFunc, pArgs);
-        // klee_message("KLEE: predict done");
-        PyObject* rewards = PyTuple_GetItem(res, 0); // rewards for each state, shape = [num_state]
-        PyObject* new_hiddens = PyTuple_GetItem(res, 1); // only useful in RNN model
-        // klee_message("KLEE: get item done");
-        int i=0;
-        for (auto state : states) {
-            klee_message("KLEE: set attribute for state %d", i);
-            state->predicted_reward = PyFloat_AsDouble(PyList_GetItem(rewards, i));
-            if (type == RNN) {
-                for (uint j=0; j<state->hidden_state.size(); j++)
-                     state->hidden_state[j] = PyFloat_AsDouble(PyList_GetItem(PyList_GetItem(new_hiddens, i), j));
-            }
-            i++;
-        }
-    }
-
-    ExecutionState *selection = NULL;
-    // sampling为true表示采用随机算则，不过权重越大状态被选择的概率越大
-    // klee_message("KLEE: select state");
-    if (sampling) {
-        PyObject* pArgs = PyTuple_New(1);
-        PyObject* predicted = PyList_New(0); // predicted = list()
-        for (auto state : states) {
-            PyList_Append(predicted, PyFloat_FromDouble(state->predicted_reward)); // predicted.append(state->predicted_reward)
-        }
-        PyTuple_SetItem(pArgs, 0, predicted);
-        // load model.py
-        PyObject *pName = PyUnicode_FromString("model");
-        PyObject *pModule = PyImport_Import(pName);
-        // call sample function in model.py
-        PyObject *pCallFunc = PyObject_GetAttrString(pModule, "sample");
-        PyObject *res = PyObject_CallObject(pCallFunc, pArgs);
-        selection = states[PyLong_AsLong(res)];
-    }
-    else {
-        double current_max = -100000000.0;
-        bool current_set = false;
-        for (auto state : states) {
-            // std::cout << state->predicted_reward << " ";
-            if(!current_set || current_max < state->predicted_reward) {
-                selection = state;
-                current_max = state->predicted_reward;
-                current_set = true;
-            }
+        // std::cout << state->predicted_reward << " ";
+        if(!current_set || current_max < state->predicted_reward) {
+            selection = state;
+            current_max = state->predicted_reward;
+            current_set = true;
         }
     }
     selection->predicted_reward = 0.0;
-    PyGILState_Release(gstate);
     addFeature(selection);
     // process features, which is post process of ML searh
     subpath_ty subpath;

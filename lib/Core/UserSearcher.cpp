@@ -86,36 +86,11 @@ cl::opt<std::string> BatchTime(
     cl::cat(SearchCat));
 
 // add support for machine learning based search
-cl::opt<std::string> ModelType(
-    "model-type",
-    cl::desc("Type of the machine learning model"),
-    cl::init(""),
-    cl::cat(SearchCat));
-
 cl::opt<std::string> ModelPath(
      "model-path",
      cl::desc("Path of the machine learning model"),
      cl::init(""),
      cl::cat(SearchCat));
-
-cl::opt<std::string> ScriptPath(
-     "script-path",
-     cl::desc("path that python script place"),
-     cl::init(""),
-     cl::cat(SearchCat));
-
-cl::opt<std::string> PyPath(
-     "py-path",
-     cl::desc("path to corresponding python interpreter, default using system default interpreter"),
-     cl::init(""),
-     cl::cat(SearchCat));
-
-cl::opt<bool> Sampling(
-    "sampling",
-    cl::desc("Whether to do sampling for ML searcher (default=false)"),
-    cl::init(false),
-    cl::cat(SearchCat));
-
 } // namespace
 
 void klee::initializeSearchOptions() {
@@ -160,7 +135,7 @@ Searcher *getNewSearcher(Searcher::CoreSearchType type, RNG &rng, PTree &process
     case Searcher::SGS_4: searcher = new SubpathGuidedSearcher(executor, 2); break;
     case Searcher::SGS_8: searcher = new SubpathGuidedSearcher(executor, 3); break;
     // add support for machine learning based search
-    case Searcher::ML: searcher = new MLSearcher(executor, ModelType, ModelPath, ScriptPath, PyPath, Sampling); break;
+    case Searcher::ML: searcher = new MLSearcher(executor, ModelPath); break;
   }
 
   return searcher;

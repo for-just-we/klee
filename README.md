@@ -21,7 +21,7 @@ release 1增加了对subpath guided search的支持，learch的支持准备在�
 - 在 `ExecutionState` 类，`Executor` 类中添加相关成员变量支持（注意初始化）
 
 
-相比2.3.1添加了对ML Search的支持，目前只支持给定pytorch model，MLSearcher会调用python解释器加载model进行state reward预测。
+release 2(2.3.2)相比2.3.1添加了对ML Search的支持，目前只支持给定pytorch model，MLSearcher会调用python解释器加载model进行state reward预测。
 需要注意的是python代码必须和[model.py](https://github.com/eth-sri/learch/blob/master/learch/model.py) 保持一致。与2.3.1相比，klee命令行程序多出了以下选项
 
 - `--feature-extract`: bool类型，是否提取特征，如果使用ml搜索策略必须开启
@@ -42,6 +42,6 @@ release 1增加了对subpath guided search的支持，learch的支持准备在�
 
 - 运行的时候 `--script-path=<conda_dir>/envs/learch`。
 
-# 目前存在的问题
-
 `MLSearcher` 在当前版本运行存在一些问题，其它搜索策略（包括subpath）运行正常，原因在于 `Py_initialize` 会和klee posix runtime存在冲突，因此 `MLSearcher` 只能应用于不需要posix的示例。
+
+当前master相比2.3.2改用[NumCpp](https://github.com/dpilger26/NumCpp/)实现机器学习，将learch pytorch模型转化为numpy格式可参考[repo](https://github.com/for-just-we/numpyLearch)，运行时 `--model-type=<value>`, `--script-path=<value>` 选项取消了，只支持feedforward模型，`model-path` 为保存模型文件的文件夹，[repo](https://github.com/for-just-we/numpyLearch)中对应 `model/feedfoward`， 因为NumCpp不支持npz格式，所以每个矩阵单独保存了一个文件。

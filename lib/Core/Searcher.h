@@ -22,6 +22,7 @@
 #include <queue>
 #include <set>
 #include <vector>
+#include "learchModel.h"
 
 namespace llvm {
   class BasicBlock;
@@ -339,24 +340,14 @@ namespace klee {
 
   // add support for learch machine learning based search
   class MLSearcher final: public Searcher {
-  public:
-      enum ModelType {
-          Linear,
-          Feedforward,
-          RNN
-      };
-
   private:
       Executor& executor;
       std::vector<ExecutionState*> states;
-      ModelType type;
-      bool sampling;
+      PolicyFeedForwardNp model;
       long featureIndex = 0;
 
   public:
-      explicit MLSearcher(Executor &_executor, std::string model_type, std::string model_path,
-                          std::string scirpt_path, std::string py_path, bool _sampling);
-      ~MLSearcher();
+      explicit MLSearcher(Executor &_executor, std::string model_path);
 
       ExecutionState &selectState() override;
 

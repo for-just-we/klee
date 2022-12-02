@@ -956,7 +956,7 @@ void Executor::branch(ExecutionState &state,
       addConstraint(*result[i], conditions[i]);
 }
 
-ref<Expr> Executor::maxStaticPctChecks(ExecutionState &current,
+klee::ref<Expr> Executor::maxStaticPctChecks(ExecutionState &current,
                                        ref<Expr> condition) {
   if (isa<klee::ConstantExpr>(condition))
     return condition;
@@ -1278,7 +1278,7 @@ void Executor::bindArgument(KFunction *kf, unsigned index,
   getArgumentCell(state, kf, index).value = value;
 }
 
-ref<Expr> Executor::toUnique(const ExecutionState &state, 
+klee::ref<Expr> Executor::toUnique(const ExecutionState &state,
                              ref<Expr> &e) {
   ref<Expr> result = e;
 
@@ -1304,7 +1304,7 @@ ref<Expr> Executor::toUnique(const ExecutionState &state,
 
 /* Concretize the given expression, and return a possible constant value. 
    'reason' is just a documentation string stating the reason for concretization. */
-ref<klee::ConstantExpr> 
+klee::ref<klee::ConstantExpr>
 Executor::toConstant(ExecutionState &state, 
                      ref<Expr> e,
                      const char *reason) {
@@ -1661,7 +1661,7 @@ void Executor::unwindToNextLandingpad(ExecutionState &state) {
   }
 }
 
-ref<klee::ConstantExpr> Executor::getEhTypeidFor(ref<Expr> type_info) {
+klee::ref<klee::ConstantExpr> Executor::getEhTypeidFor(ref<Expr> type_info) {
   // FIXME: Handling getEhTypeidFor is non-deterministic and depends on the
   //        order states have been processed and executed.
   auto eh_type_iterator =
@@ -3932,7 +3932,7 @@ void Executor::callExternalFunction(ExecutionState &state,
 
 /***/
 
-ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state, 
+klee::ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
                                             ref<Expr> e) {
   unsigned n = interpreterOpts.MakeConcreteSymbolic;
   if (!n || replayKTest || replayPath)
@@ -4803,7 +4803,7 @@ void Executor::printSubpath(const subpath_ty& subpath) {
 }
 
 // add feature extract, support machine learning based search
-void getConstraintBOW(ref<Expr> expr, std::vector<double>& features) {
+void getConstraintBOW(klee::ref<Expr> expr, std::vector<double> &features) {
     assert(features.size() == 32);
     switch(expr->getKind()) {
         case Expr::Constant:
