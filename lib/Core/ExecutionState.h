@@ -175,7 +175,6 @@ public:
 
   std::unordered_set<std::string> coveredSource;
   std::unordered_set<unsigned> coveredInsts;
-  std::unordered_set<llvm::BasicBlock*> coveredBlocks;
 
   // Either the current subpath or the current path
   subpath_ty takenBranches;

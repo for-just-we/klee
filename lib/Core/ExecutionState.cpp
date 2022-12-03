@@ -95,7 +95,6 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     predicted_reward(0.0),
     coveredSource(state.coveredSource),
     coveredInsts(state.coveredInsts),
-    coveredBlocks(state.coveredBlocks),
     // used in subpath guided search
     takenBranches(state.takenBranches),
     // default in klee

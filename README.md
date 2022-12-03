@@ -14,12 +14,15 @@ KLEE Symbolic Virtual Machine
 
 # 修改信息
 
-release 1增加了对subpath guided search的支持，learch的支持准备在下个release添加，相比原始klee-2.3修改包括:
+### 2.3.1
+
+增加了对subpath guided search的支持，learch的支持准备在下个release添加，相比原始klee-2.3修改包括:
 
 - 在 `UserSearcher.cpp`，`Searcher.cpp`，`Searcher.h` 中添加了Subpath-guided search相关类，已经相关命令行参数
 
 - 在 `ExecutionState` 类，`Executor` 类中添加相关成员变量支持（注意初始化）
 
+### 2.3.2
 
 release 2(2.3.2)相比2.3.1添加了对ML Search的支持，目前只支持给定pytorch model，MLSearcher会调用python解释器加载model进行state reward预测。
 需要注意的是python代码必须和[model.py](https://github.com/eth-sri/learch/blob/master/learch/model.py) 保持一致。与2.3.1相比，klee命令行程序多出了以下选项
@@ -44,4 +47,10 @@ release 2(2.3.2)相比2.3.1添加了对ML Search的支持，目前只支持给�
 
 `MLSearcher` 在当前版本运行存在一些问题，其它搜索策略（包括subpath）运行正常，原因在于 `Py_initialize` 会和klee posix runtime存在冲突，因此 `MLSearcher` 只能应用于不需要posix的示例。
 
-当前master相比2.3.2改用[NumCpp](https://github.com/dpilger26/NumCpp/)实现机器学习，将learch pytorch模型转化为numpy格式可参考[repo](https://github.com/for-just-we/numpyLearch)，运行时 `--model-type=<value>`, `--script-path=<value>` 选项取消了，只支持feedforward模型，`model-path` 为保存模型文件的文件夹，[repo](https://github.com/for-just-we/numpyLearch)中对应 `model/feedfoward`， 因为NumCpp不支持npz格式，所以每个矩阵单独保存了一个文件。
+### 当前
+
+当前master相比2.3.2改用[NumCpp](https://github.com/dpilger26/NumCpp/)实现机器学习，将learch pytorch模型转化为numpy格式可参考[repo](https://github.com/for-just-we/numpyLearch)，运行时 `--model-type=<value>`, `--script-path=<value>` 选项取消了，只支持feedforward模型，`model-path` 为保存模型文件的文件夹，[repo](https://github.com/for-just-we/numpyLearch)中对应 `model/feedfoward`， 因为NumCpp不支持npz格式，所以每个矩阵单独保存了一个文件。编译的时候需要添加NumCpp头文件和boost头文件，因为NumCpp和boost都是纯头文件库，所以不需要额外链接其它库，cmake的时候
+
+- `-DNUMCPP_INCLUDE_DIR=<NumCppRoot>/include`: `<NumCppRoot>` 是NumCpp源码根目录
+
+- `-DBOOST_INCLUDE_DIR=<BoostRoot>`: `<BoostRoot>` 是Boost源码根目录

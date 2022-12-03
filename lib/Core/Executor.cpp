@@ -4996,12 +4996,7 @@ void Executor::getStateFeatures(ExecutionState *es) {
         newCoveredSource -= es->features[es->features.size()-1].second[3];
         newCoveredSource = newCoveredSource < 0 ? 0.0 : newCoveredSource;
     }
-    double newCoveredBlocks = es->coveredBlocks.size();
-    if (es->features.size() > 0) {
-        newCoveredBlocks -= es->features[es->features.size()-1].second[4];
-        newCoveredBlocks = newCoveredBlocks < 0 ? 0.0 : newCoveredBlocks;
-    }
-
+    
     BasicBlock* block = es->pc->inst->getParent();
     std::vector<double> constraint_features(32, 0.0);
     for (auto it = es->constraints.begin(); it != es->constraints.end(); it++)
