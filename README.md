@@ -54,3 +54,13 @@ release 2(2.3.2)相比2.3.1添加了对ML Search的支持，目前只支持给�
 - `-DNUMCPP_INCLUDE_DIR=<NumCppRoot>/include`: `<NumCppRoot>` 是NumCpp源码根目录
 
 - `-DBOOST_INCLUDE_DIR=<BoostRoot>`: `<BoostRoot>` 是Boost源码根目录
+
+在使用的时候，跟2.3.2相比：
+
+- `--script-path=<value>` 和 `--model-type=<value>` 不再需要
+
+- `--model-path` 是一个文件夹路径，文件夹下应保存8个模型文件: `mean, scale, bias1, linear1, bias2, linear2, bias3, linear3`
+
+### 2.3.4
+
+相比2.3.3添加了优化。具体来说, `Executor` 类会保存一个 `featureStates` 变量表示每次选取状态时的待选集合，在 `states` 集合中不是所有的状态都会被作为候选。同时，reward计算是批次进行不是单个进行

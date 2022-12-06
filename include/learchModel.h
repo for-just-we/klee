@@ -55,6 +55,15 @@ public:
         out = nc::add(nc::matmul(out, linear3), bias3);
         return out;
     }
+
+    nc::NdArray<double> forward_batch(vector<vector<double> > vecs) {
+        nc::NdArray<double> x(vecs); // shape = [num_state, 47]
+        nc::NdArray<double> out = nc::divide(x - mean.repeat(vecs.size(), 1), scale.repeat(vecs.size(), 1)); // shape = [num_state, 47]
+        out = relu(nc::add(nc::matmul(out, linear1), bias1.repeat(vecs.size(), 1)));
+        out = relu(nc::add(nc::matmul(out, linear2), bias2.repeat(vecs.size(), 1)));
+        out = nc::add(nc::matmul(out, linear3), bias3.repeat(vecs.size(), 1));
+        return out;
+    }
 };
 
 #endif //NUMPYLEARCH_LEARCHMODEL_H

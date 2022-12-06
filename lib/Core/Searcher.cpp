@@ -604,28 +604,44 @@ MLSearcher::MLSearcher(Executor &_executor, std::string model_path) :
 }
 
 ExecutionState &MLSearcher::selectState() {
-    int batch_size = 0;
+    for (auto it=executor.featureStates.begin(); it != executor.featureStates.end(); ++it) {
+        (*it)->predicted = false;
+        executor.getStateFeatures(*it);
+    }
+    executor.featureStates.clear();
+
     ExecutionState *selection = NULL;
-    double current_max = -100000000.0;
-    bool current_set = false;
+    vector<vector<double>> features;
     // prepare input data to model, shape = [num_state, feature_size]
     for (ExecutionState* state : states) {
-        ++batch_size;
+        if (state->predicted)
+            continue;
         vector<double> feature; // feature for a single state
-        executor.getStateFeatures(state);
         for (uint i=2; i<state->feature.size(); i++)
             feature.push_back(state->feature[i]); // feature.append(state->feature[i])
-        nc::NdArray<double> rewards = model.forward(feature);
-        state->predicted_reward = rewards[0, 0];
+        features.push_back(feature);
+    }
+    // 采用矩阵计算一次计算所有状态的reward
+    nc::NdArray<double> rewards = model.forward_batch(features);
+    int i = 0;
+    double current_max = -100000000.0;
+    bool current_set = false;
+    //
+    for (ExecutionState* state : states) {
+        if (state->predicted)
+            continue;
+        state->predicted = true;
+        state->predicted_reward = rewards[i, 0];
 
-        // std::cout << state->predicted_reward << " ";
         if(!current_set || current_max < state->predicted_reward) {
             selection = state;
             current_max = state->predicted_reward;
             current_set = true;
         }
+        i++;
     }
     selection->predicted_reward = 0.0;
+    selection->predicted = false;
     addFeature(selection);
     // process features, which is post process of ML searh
     subpath_ty subpath;

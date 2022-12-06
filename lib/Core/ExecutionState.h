@@ -168,7 +168,8 @@ public:
   std::vector<double> feature;
   std::vector<std::pair<long, std::vector<double>>> features;
   std::vector<double> hidden_state;
-  double predicted_reward;
+  double predicted_reward; // reward for a state in learch
+  bool predicted; // avoid duplicated calculation for learch weight
   // other feature used in learch
   static std::unordered_set<std::string> allCoveredSource;
   static unsigned genTestCases;

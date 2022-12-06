@@ -892,6 +892,9 @@ void Executor::branch(ExecutionState &state,
     // add support for subpath-guided search
     unsigned inst_id = state.prevPC->info->id;
     state.takenBranches.push_back(std::make_pair(inst_id, 0));
+    // state发生fork
+    if (featureExtract)
+        featureStates.insert(&state);
 
     for (unsigned i=1; i<N; ++i) {
       ExecutionState *es = result[theRNG.getInt32() % i];
@@ -901,6 +904,9 @@ void Executor::branch(ExecutionState &state,
       processTree->attach(es->ptreeNode, ns, es, reason);
       // add support for subpath guided search
       ns->takenBranches.push_back(std::make_pair(inst_id, i));
+      // 将fork的状态添加进待处理状态列表
+      if (featureExtract)
+          featureStates.insert(ns);
     }
   }
 
@@ -1119,7 +1125,8 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
 
     // add support for subpath-guided search
     current.takenBranches.push_back(std::make_pair(current.prevPC->info->id, 1));
-
+    if (featureExtract)
+        featureStates.insert(&current);
     return StatePair(&current, nullptr);
   } else if (res==Solver::False) {
     if (!isInternal) {
@@ -1130,6 +1137,8 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
 
     // add support for subpath-guided search
     current.takenBranches.push_back(std::make_pair(current.prevPC->info->id, 0));
+    if (featureExtract)
+        featureStates.insert(&current);
 
     return StatePair(nullptr, &current);
   } else {
@@ -1182,6 +1191,10 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     unsigned inst_id = current.prevPC->info->id;
     falseState->takenBranches.push_back(std::make_pair(inst_id, 0));
     trueState->takenBranches.push_back(std::make_pair(inst_id, 1));
+    if (featureExtract) {
+        featureStates.insert(falseState);
+        featureStates.insert(trueState);
+    }
 
     if (pathWriter) {
       // Need to update the pathOS.id field of falseState, otherwise the same id
@@ -3330,6 +3343,11 @@ void Executor::updateStates(ExecutionState *current) {
       seedMap.erase(it3);
     processTree->remove(es->ptreeNode);
 
+    if (featureExtract) {
+        auto it1 = featureStates.find(es);
+        if (it1 != featureStates.end())
+            featureStates.erase(it1);
+    }
     delete es;
   }
   removedStates.clear();
@@ -3538,7 +3556,12 @@ void Executor::run(ExecutionState &initialState) {
 
   std::vector<ExecutionState *> newStates(states.begin(), states.end());
   searcher->update(0, newStates, std::vector<ExecutionState *>());
-
+  if (featureExtract) {
+      for (uint i = 0; i < newStates.size(); i++) {
+          newStates[i]->predicted = false;
+          getStateFeatures(newStates[i]);
+      }
+  }
   // main interpreter loop
   while (!states.empty() && !haltExecution) {
     ExecutionState &state = searcher->selectState();
@@ -3624,6 +3647,12 @@ void Executor::terminateState(ExecutionState &state) {
   }
 
   interpreterHandler->incPathsExplored();
+  // 清除featureStates
+  if (featureExtract) {
+      auto it1 = featureStates.find(&state);
+      if (it1 != featureStates.end())
+          featureStates.erase(it1);
+  }
 
   std::vector<ExecutionState *>::iterator it =
       std::find(addedStates.begin(), addedStates.end(), &state);

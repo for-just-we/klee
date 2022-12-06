@@ -74,6 +74,7 @@ StackFrame::~StackFrame() {
 
 ExecutionState::ExecutionState(KFunction *kf)
     : predicted_reward(0.0),
+      predicted(false),
       pc(kf->instructions),
       prevPC(pc) {
   pushFrame(nullptr, kf);
@@ -93,6 +94,7 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     features(state.features),
     hidden_state(state.hidden_state),
     predicted_reward(0.0),
+    predicted(state.predicted),
     coveredSource(state.coveredSource),
     coveredInsts(state.coveredInsts),
     // used in subpath guided search

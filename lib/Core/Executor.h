@@ -102,6 +102,8 @@ public:
 
   /// The random number generator.
   RNG theRNG;
+  // 记录状态列表待添加的状态
+  std::set<ExecutionState*, ExecutionStateIDCompare> featureStates;
 
 private:
   // add support for feature extract, support machine learning based search
