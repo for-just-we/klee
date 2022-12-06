@@ -610,7 +610,6 @@ ExecutionState &MLSearcher::selectState() {
     }
     executor.featureStates.clear();
 
-    ExecutionState *selection = NULL;
     vector<vector<double>> features;
     // prepare input data to model, shape = [num_state, feature_size]
     for (ExecutionState* state : states) {
@@ -621,25 +620,32 @@ ExecutionState &MLSearcher::selectState() {
             feature.push_back(state->feature[i]); // feature.append(state->feature[i])
         features.push_back(feature);
     }
-    // 采用矩阵计算一次计算所有状态的reward
-    nc::NdArray<double> rewards = model.forward_batch(features);
-    int i = 0;
+
+    if (!features.empty()) {
+        // 采用矩阵计算一次计算所有状态的reward
+        nc::NdArray<double> rewards = model.forward_batch(features);
+        int i = 0;
+        //
+        for (ExecutionState* state : states) {
+            if (state->predicted)
+                continue;
+            state->predicted = true;
+            state->predicted_reward = rewards[i, 0];
+            i++;
+        }
+    }
+
+    ExecutionState *selection = NULL;
     double current_max = -100000000.0;
     bool current_set = false;
-    //
-    for (ExecutionState* state : states) {
-        if (state->predicted)
-            continue;
-        state->predicted = true;
-        state->predicted_reward = rewards[i, 0];
-
+    for (auto state : states) {
         if(!current_set || current_max < state->predicted_reward) {
             selection = state;
             current_max = state->predicted_reward;
             current_set = true;
         }
-        i++;
     }
+
     selection->predicted_reward = 0.0;
     selection->predicted = false;
     addFeature(selection);
