@@ -47,9 +47,9 @@ release 2(2.3.2)相比2.3.1添加了对ML Search的支持，目前只支持给�
 
 `MLSearcher` 在当前版本运行存在一些问题，其它搜索策略（包括subpath）运行正常，原因在于 `Py_initialize` 会和klee posix runtime存在冲突，因此 `MLSearcher` 只能应用于不需要posix的示例。
 
-### 当前
+### 2.3.3
 
-当前master相比2.3.2改用[NumCpp](https://github.com/dpilger26/NumCpp/)实现机器学习，将learch pytorch模型转化为numpy格式可参考[repo](https://github.com/for-just-we/numpyLearch)，运行时 `--model-type=<value>`, `--script-path=<value>` 选项取消了，只支持feedforward模型，`model-path` 为保存模型文件的文件夹，[repo](https://github.com/for-just-we/numpyLearch)中对应 `model/feedfoward`， 因为NumCpp不支持npz格式，所以每个矩阵单独保存了一个文件。编译的时候需要添加NumCpp头文件和boost头文件，因为NumCpp和boost都是纯头文件库，所以不需要额外链接其它库，cmake的时候
+2.3.3相比2.3.2改用[NumCpp](https://github.com/dpilger26/NumCpp/)实现机器学习，将learch pytorch模型转化为numpy格式可参考[repo](https://github.com/for-just-we/numpyLearch)，运行时 `--model-type=<value>`, `--script-path=<value>` 选项取消了，只支持feedforward模型，`model-path` 为保存模型文件的文件夹，[repo](https://github.com/for-just-we/numpyLearch)中对应 `model/feedfoward`， 因为NumCpp不支持npz格式，所以每个矩阵单独保存了一个文件。编译的时候需要添加NumCpp头文件和boost头文件，因为NumCpp和boost都是纯头文件库，所以不需要额外链接其它库，cmake的时候
 
 - `-DNUMCPP_INCLUDE_DIR=<NumCppRoot>/include`: `<NumCppRoot>` 是NumCpp源码根目录
 
