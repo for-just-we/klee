@@ -156,6 +156,9 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
     searcher = new InterleavedSearcher(s);
   }
 
+  if (executor.getFeatureExtract())
+    searcher = new GetFeaturesSearcher(searcher, executor);
+
   if (UseBatchingSearch) {
     searcher = new BatchingSearcher(searcher, time::Span(BatchTime),
                                     BatchInstructions);

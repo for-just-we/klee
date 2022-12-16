@@ -344,14 +344,11 @@ namespace klee {
       Executor& executor;
       std::vector<ExecutionState*> states;
       PolicyFeedForwardNp model;
-      long featureIndex = 0;
 
   public:
       explicit MLSearcher(Executor &_executor, std::string model_path);
 
       ExecutionState &selectState() override;
-
-      void addFeature(ExecutionState *state);
 
       void update(ExecutionState *current,
                   const std::vector<ExecutionState *> &addedStates,
@@ -363,6 +360,36 @@ namespace klee {
           os << "<MLSearcher>"
           << "</MLSearcher>\n";
       }
+  };
+
+  // used to extract features
+  class GetFeaturesSearcher : public Searcher {
+  public:
+      explicit GetFeaturesSearcher(Searcher *searcher, Executor &_executor);
+
+      ~GetFeaturesSearcher();
+
+      void addFeatures(ExecutionState &);
+
+      ExecutionState &selectState() override;
+
+      void update(ExecutionState *current,
+                  const std::vector<ExecutionState *> &addedStates,
+                  const std::vector<ExecutionState *> &removedStates) override;
+
+      bool empty() override { return baseSearcher->empty(); }
+
+      void printName(llvm::raw_ostream &os) override {
+          os << "<GetFeaturesSearcher>"
+             << ", baseSearcher:\n";
+          baseSearcher->printName(os);
+          os << "</GetFeaturesSearcher>\n";
+      }
+
+  private:
+      Searcher *baseSearcher;
+      Executor &executor;
+      long featureIndex = 0;
   };
 } // klee namespace
 

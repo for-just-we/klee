@@ -64,3 +64,11 @@ release 2(2.3.2)相比2.3.1添加了对ML Search的支持，目前只支持给�
 ### 2.3.4
 
 相比2.3.3添加了优化。具体来说, `Executor` 类会保存一个 `featureStates` 变量表示每次选取状态时的待选集合，在 `states` 集合中不是所有的状态都会被作为候选。同时，reward计算是批次进行不是单个进行
+
+### 2.3.5
+
+相比2.3.4：
+
+- 命令行选项添加了 `--feature-dump` 参数，将每个状态提取的特征导出为csv文件，该csv文件和ktest文件放在同一个目录下
+
+- 特征提取的工作不再由 `MLSearcher` 完成，由 `GetFeaturesSearcher` 完成

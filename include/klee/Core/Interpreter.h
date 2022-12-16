@@ -168,6 +168,9 @@ public:
                                std::map<const std::string*, std::set<unsigned> > &res) = 0;
 };
 
+bool getStateCoverNew(const ExecutionState& state);
+
+std::vector<std::pair<long, std::vector<double>>> getStateFeature(const ExecutionState& state);
 } // End klee namespace
 
 #endif /* KLEE_INTERPRETER_H */

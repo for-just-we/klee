@@ -293,6 +293,12 @@ namespace {
                     "must be set to true if using machine learning based search (--search=ml)"),
            cl::init(false),
            cl::cat(TestGenCat));
+
+  cl::opt<bool>
+  FeatureDump("feature-dump",
+           cl::desc("Whether to dump extracted features for tests (default=false)"),
+           cl::init(false),
+           cl::cat(TestGenCat));
 }
 
 namespace klee {
@@ -521,6 +527,13 @@ void KleeHandler::processTestCase(const ExecutionState &state,
         ++m_numGeneratedTests;
       }
 
+      if (getStateCoverNew(state)) {
+        std::stringstream filename;
+        filename << "test" << std::setfill('0') << std::setw(6) << id << ".covnew";
+        FILE *f = fopen(getOutputFilename(filename.str()).c_str(), "w");
+        fclose(f);
+      }
+
       for (unsigned i=0; i<b.numObjects; i++)
         delete[] b.objects[i].bytes;
       delete[] b.objects;
@@ -604,7 +617,46 @@ void KleeHandler::processTestCase(const ExecutionState &state,
       if (f)
         *f << "Time to generate test case: " << elapsed_time << '\n';
     }
-  } // if (!WriteNone)
+
+    if (FeatureDump && !getStateFeature(state).empty()) {
+      auto f = openTestFile("features.csv", id);
+      if(f) {
+        std::vector<std::string> types = {
+              "Index","QueryCost","QueryCostAcc","InstsCovAcc","LinesCovAcc", //"BlocksCovAcc",
+              "InstsCovNew","LinesCovNew", //"BlocksCovNew","BlockVisitTime",
+              // "num_block","num_inst","num_source","num_bug","num_overflow","num_shift","num_oob","num_pointer","num_null",
+              "Depth","Stack","GeneratedTestCases","InstCount","CPInstCount",
+              "NumSucc","InstsSinceCovNew",
+              "SGS1","SGS2","SGS4","SGS8",
+              "Constant","NotOptimized","Read","Select","Concat",
+              "Extract","ZExt","SExt","Not","Add","Sub","Mul",
+              "UDiv","SDiv","URem","SRem","And","Or","Xor","Shl",
+              "LShr","AShr","Eq","Ne","Ult","Ule","Ugt","Uge","Slt",
+              "Sle","Sgt","Sge"};
+        for(uint i=0; i<types.size(); i++) {
+          if (i == types.size()-1)
+            *f << types[i] << "\n";
+          else
+            *f << types[i] << ",";
+        }
+
+        for(const std::pair<long, std::vector<double>> &pair: getStateFeature(state)) {
+          long index = pair.first;
+          *f << index << ",";
+          std::vector<double> row = pair.second;
+          for(auto el = row.begin(); el != row.end(); el++) {
+            std::stringstream tmp;
+            tmp << std::setprecision(3) << std::fixed << *el;
+            *f << tmp.str();
+            if(el + 1 != row.end())
+              *f << ",";
+            else
+              *f << "\n";
+          }
+        }
+      }
+    }
+  }// if (!WriteNone)
 
   if (errorMessage && OptExitOnError) {
     m_interpreter->prepareForEarlyExit();

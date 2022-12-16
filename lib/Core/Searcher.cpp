@@ -604,12 +604,6 @@ MLSearcher::MLSearcher(Executor &_executor, std::string model_path) :
 }
 
 ExecutionState &MLSearcher::selectState() {
-    for (auto it=executor.featureStates.begin(); it != executor.featureStates.end(); ++it) {
-        (*it)->predicted = false;
-        executor.getStateFeatures(*it);
-    }
-    executor.featureStates.clear();
-
     vector<vector<double>> features;
     // prepare input data to model, shape = [num_state, feature_size]
     for (ExecutionState* state : states) {
@@ -648,24 +642,7 @@ ExecutionState &MLSearcher::selectState() {
 
     selection->predicted_reward = 0.0;
     selection->predicted = false;
-    addFeature(selection);
-    // process features, which is post process of ML searh
-    subpath_ty subpath;
-    executor.getSubpath(selection, subpath, 0);
-    executor.incSubpath(subpath, 0);
-    executor.getSubpath(selection, subpath, 1);
-    executor.incSubpath(subpath, 1);
-    executor.getSubpath(selection, subpath, 2);
-    executor.incSubpath(subpath, 2);
-    executor.getSubpath(selection, subpath, 3);
-    executor.incSubpath(subpath, 3);
-
     return *selection;
-}
-
-void MLSearcher::addFeature(ExecutionState *state){
-    long index = featureIndex++;
-    state->features.emplace_back(index, state->feature);
 }
 
 void MLSearcher::update(klee::ExecutionState *current,
@@ -679,4 +656,45 @@ void MLSearcher::update(klee::ExecutionState *current,
         assert(it != states.end() && "invalid state removed");
         states.erase(it);
     }
+}
+
+
+GetFeaturesSearcher::GetFeaturesSearcher(Searcher *searcher, Executor &_executor) : baseSearcher(searcher), executor(_executor) {
+}
+
+GetFeaturesSearcher::~GetFeaturesSearcher() {
+    delete baseSearcher;
+}
+
+ExecutionState &GetFeaturesSearcher::selectState() {
+    for (auto it=executor.featureStates.begin(); it != executor.featureStates.end(); ++it) {
+        (*it)->predicted = false;
+        executor.getStateFeatures(*it);
+    }
+    executor.featureStates.clear();
+    ExecutionState &selected = baseSearcher->selectState();
+    addFeatures(selected);
+
+    subpath_ty subpath;
+    executor.getSubpath(&selected, subpath, 0);
+    executor.incSubpath(subpath, 0);
+    executor.getSubpath(&selected, subpath, 1);
+    executor.incSubpath(subpath, 1);
+    executor.getSubpath(&selected, subpath, 2);
+    executor.incSubpath(subpath, 2);
+    executor.getSubpath(&selected, subpath, 3);
+    executor.incSubpath(subpath, 3);
+
+    return selected;
+}
+
+void GetFeaturesSearcher::addFeatures(ExecutionState &es) {
+    long index = featureIndex++;
+    es.features.emplace_back(index, es.feature);
+}
+
+void GetFeaturesSearcher::update(klee::ExecutionState *current,
+                                 const std::vector<ExecutionState *> &addedStates,
+                                 const std::vector<ExecutionState *> &removedStates) {
+    baseSearcher->update(current, addedStates, removedStates);
 }

@@ -5059,3 +5059,11 @@ void Executor::getStateFeatures(ExecutionState *es) {
 bool Executor::getFeatureExtract() {
     return featureExtract;
 }
+
+bool klee::getStateCoverNew(const klee::ExecutionState &state) {
+    return state.coveredNew;
+}
+
+std::vector<std::pair<long, std::vector<double>>> klee::getStateFeature(const klee::ExecutionState &state) {
+    return state.features;
+}
