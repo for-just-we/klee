@@ -3628,6 +3628,7 @@ void Executor::terminateState(ExecutionState &state) {
     klee_warning_once(replayKTest,
                       "replay did not consume all objects in test input.");
   }
+  // add support for postcondition symbolic execution
   updatePostcondition(state);
   interpreterHandler->incPathsExplored();
 
