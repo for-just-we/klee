@@ -24,6 +24,7 @@
 #include "klee/Core/TerminationTypes.h"
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
@@ -102,14 +103,10 @@ public:
 
   /// The random number generator.
   RNG theRNG;
-  // 记录状态列表待添加的状态
-  std::set<ExecutionState*, ExecutionStateIDCompare> featureStates;
 
 private:
-  // add support for feature extract, support machine learning based search
-  bool featureExtract;
-  // add support for subpath-guided search
-  std::vector<subpathCount_ty> subpathCounts;
+  std::map<llvm::Instruction*, ref<Expr>> Inst2PostCond;
+  ExprBuilder* exprBuilder;
 
   std::unique_ptr<KModule> kmodule;
   InterpreterHandler *interpreterHandler;
@@ -341,7 +338,7 @@ private:
   /// not hold, respectively. One of the states is necessarily the
   /// current state, and one of the states may be null.
   StatePair fork(ExecutionState &current, ref<Expr> condition, bool isInternal,
-                 BranchType reason);
+                 BranchType reason, llvm::Instruction *i = nullptr);
 
   // If the MaxStatic*Pct limits have been reached, concretize the condition and
   // return it. Otherwise, return the unmodified condition.
@@ -488,14 +485,8 @@ private:
 
 public:
   Executor(llvm::LLVMContext &ctx, const InterpreterOptions &opts,
-      InterpreterHandler *ie, bool _featureExtract = false);
+      InterpreterHandler *ie);
   virtual ~Executor();
-
-  // add support for subpath guided search
-  void getSubpath(ExecutionState* state, subpath_ty &result, uint index);
-  unsigned long getSubpathCount(subpath_ty &subpath, uint index);
-  void incSubpath(subpath_ty &subpath, uint index);
-  void printSubpath(const subpath_ty& subpath);
 
   const InterpreterHandler& getHandler() {
     return *interpreterHandler;
@@ -565,10 +556,8 @@ public:
   MergingSearcher *getMergingSearcher() const { return mergingSearcher; };
   void setMergingSearcher(MergingSearcher *ms) { mergingSearcher = ms; };
 
-  // add feature extract process, support machine learning based search
-  void getStateFeatures(ExecutionState *es);
-
-  bool getFeatureExtract();
+  // add support for postcondition symbolic execution
+  void updatePostcondition(ExecutionState &state);
 };
   
 } // End klee namespace

@@ -38,6 +38,7 @@ using namespace llvm;
 
 
 ///
+
 ExecutionState &DFSSearcher::selectState() {
   return *states.back();
 }
@@ -517,6 +518,7 @@ void IterativeDeepeningTimeSearcher::printName(llvm::raw_ostream &os) {
   os << "IterativeDeepeningTimeSearcher\n";
 }
 
+
 ///
 
 InterleavedSearcher::InterleavedSearcher(const std::vector<Searcher*> &_searchers) {
@@ -549,152 +551,4 @@ void InterleavedSearcher::printName(llvm::raw_ostream &os) {
   for (const auto &searcher : searchers)
     searcher->printName(os);
   os << "</InterleavedSearcher>\n";
-}
-
-// Add support for subpath guided search
-SubpathGuidedSearcher::SubpathGuidedSearcher(Executor &_executor, uint index)
-    : executor(_executor), index(index),theRNG{_executor.theRNG} {
-}
-
-ExecutionState &SubpathGuidedSearcher::selectState() {
-  unsigned long minCount = ULONG_MAX;
-  std::vector<ExecutionState *> selectSet;
-  // std::cout << "states:" << std::endl;
-  for(auto & state : states) {
-    subpath_ty subpath;
-    executor.getSubpath(state, subpath, index);
-    unsigned long curr = executor.getSubpathCount(subpath, index);
-    if(curr < minCount) {
-      selectSet.clear();
-      minCount = curr;
-    }
-
-    if(curr == minCount) {
-      selectSet.push_back(state);
-    }
-  }
-
-  unsigned int random = theRNG.getInt32() % selectSet.size();
-  ExecutionState *selection = selectSet[random];
-  // P[ES.π]++
-  subpath_ty subpath;
-  executor.getSubpath(selection, subpath, index);
-  executor.incSubpath(subpath, index);
-
-  return *selection;
-}
-
-void SubpathGuidedSearcher::update(ExecutionState *current,
-                                   const std::vector<ExecutionState *> &addedStates,
-                                   const std::vector<ExecutionState *> &removedStates) {
-  states.insert(states.end(),
-                addedStates.begin(),
-                addedStates.end());
-  for (const auto state : removedStates) {
-    auto it = std::find(states.begin(), states.end(), state);
-    assert(it != states.end() && "invalid state removed");
-    states.erase(it);
-  }
-}
-
-
-// add support for learch machine learning based search
-MLSearcher::MLSearcher(Executor &_executor, std::string model_path) :
-    executor(_executor), model(model_path) {
-}
-
-ExecutionState &MLSearcher::selectState() {
-    vector<vector<double>> features;
-    // prepare input data to model, shape = [num_state, feature_size]
-    for (ExecutionState* state : states) {
-        if (state->predicted)
-            continue;
-        vector<double> feature; // feature for a single state
-        for (uint i=2; i<state->feature.size(); i++)
-            feature.push_back(state->feature[i]); // feature.append(state->feature[i])
-        features.push_back(feature);
-    }
-
-    if (!features.empty()) {
-        // 采用矩阵计算一次计算所有状态的reward
-        nc::NdArray<double> rewards = model.forward_batch(features);
-        int i = 0;
-        //
-        for (ExecutionState* state : states) {
-            if (state->predicted)
-                continue;
-            state->predicted = true;
-            state->predicted_reward = rewards[i, 0];
-            i++;
-        }
-    }
-
-    ExecutionState *selection = NULL;
-    double current_max = -100000000.0;
-    bool current_set = false;
-    for (auto state : states) {
-        if(!current_set || current_max < state->predicted_reward) {
-            selection = state;
-            current_max = state->predicted_reward;
-            current_set = true;
-        }
-    }
-
-    selection->predicted_reward = 0.0;
-    selection->predicted = false;
-    return *selection;
-}
-
-void MLSearcher::update(klee::ExecutionState *current,
-                        const std::vector<ExecutionState *> &addedStates,
-                        const std::vector<ExecutionState *> &removedStates) {
-    states.insert(states.end(),
-                  addedStates.begin(),
-                  addedStates.end());
-    for (const auto state : removedStates) {
-        auto it = std::find(states.begin(), states.end(), state);
-        assert(it != states.end() && "invalid state removed");
-        states.erase(it);
-    }
-}
-
-
-GetFeaturesSearcher::GetFeaturesSearcher(Searcher *searcher, Executor &_executor) : baseSearcher(searcher), executor(_executor) {
-}
-
-GetFeaturesSearcher::~GetFeaturesSearcher() {
-    delete baseSearcher;
-}
-
-ExecutionState &GetFeaturesSearcher::selectState() {
-    for (auto it=executor.featureStates.begin(); it != executor.featureStates.end(); ++it) {
-        (*it)->predicted = false;
-        executor.getStateFeatures(*it);
-    }
-    executor.featureStates.clear();
-    ExecutionState &selected = baseSearcher->selectState();
-    addFeatures(selected);
-
-    subpath_ty subpath;
-    executor.getSubpath(&selected, subpath, 0);
-    executor.incSubpath(subpath, 0);
-    executor.getSubpath(&selected, subpath, 1);
-    executor.incSubpath(subpath, 1);
-    executor.getSubpath(&selected, subpath, 2);
-    executor.incSubpath(subpath, 2);
-    executor.getSubpath(&selected, subpath, 3);
-    executor.incSubpath(subpath, 3);
-
-    return selected;
-}
-
-void GetFeaturesSearcher::addFeatures(ExecutionState &es) {
-    long index = featureIndex++;
-    es.features.emplace_back(index, es.feature);
-}
-
-void GetFeaturesSearcher::update(klee::ExecutionState *current,
-                                 const std::vector<ExecutionState *> &addedStates,
-                                 const std::vector<ExecutionState *> &removedStates) {
-    baseSearcher->update(current, addedStates, removedStates);
 }

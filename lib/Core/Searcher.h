@@ -22,7 +22,6 @@
 #include <queue>
 #include <set>
 #include <vector>
-#include "learchModel.h"
 
 namespace llvm {
   class BasicBlock;
@@ -72,14 +71,7 @@ namespace klee {
       NURS_RP,
       NURS_ICnt,
       NURS_CPICnt,
-      NURS_QC,
-
-      SGS_1,
-      SGS_2,
-      SGS_4,
-      SGS_8,
-
-      ML
+      NURS_QC
     };
   };
 
@@ -317,80 +309,6 @@ namespace klee {
     void printName(llvm::raw_ostream &os) override;
   };
 
-  class SubpathGuidedSearcher final: public Searcher {
-    std::vector<ExecutionState*> states;
-  private:
-    Executor &executor;
-    uint index;
-    RNG &theRNG;
-
-  public:
-    SubpathGuidedSearcher(Executor &_executor, uint index);
-
-  public:
-    ExecutionState &selectState() override;
-    void update(ExecutionState *current,
-                const std::vector<ExecutionState *> &addedStates,
-                const std::vector<ExecutionState *> &removedStates) override;
-    bool empty() override { return states.empty();}
-    void printName(llvm:: raw_ostream &os) override {
-      os << "New Searcher\n";
-    }
-  };
-
-  // add support for learch machine learning based search
-  class MLSearcher final: public Searcher {
-  private:
-      Executor& executor;
-      std::vector<ExecutionState*> states;
-      PolicyFeedForwardNp model;
-
-  public:
-      explicit MLSearcher(Executor &_executor, std::string model_path);
-
-      ExecutionState &selectState() override;
-
-      void update(ExecutionState *current,
-                  const std::vector<ExecutionState *> &addedStates,
-                  const std::vector<ExecutionState *> &removedStates) override;
-
-      bool empty() override { return states.empty(); }
-
-      void printName(llvm::raw_ostream &os) override {
-          os << "<MLSearcher>"
-          << "</MLSearcher>\n";
-      }
-  };
-
-  // used to extract features
-  class GetFeaturesSearcher : public Searcher {
-  public:
-      explicit GetFeaturesSearcher(Searcher *searcher, Executor &_executor);
-
-      ~GetFeaturesSearcher();
-
-      void addFeatures(ExecutionState &);
-
-      ExecutionState &selectState() override;
-
-      void update(ExecutionState *current,
-                  const std::vector<ExecutionState *> &addedStates,
-                  const std::vector<ExecutionState *> &removedStates) override;
-
-      bool empty() override { return baseSearcher->empty(); }
-
-      void printName(llvm::raw_ostream &os) override {
-          os << "<GetFeaturesSearcher>"
-             << ", baseSearcher:\n";
-          baseSearcher->printName(os);
-          os << "</GetFeaturesSearcher>\n";
-      }
-
-  private:
-      Searcher *baseSearcher;
-      Executor &executor;
-      long featureIndex = 0;
-  };
 } // klee namespace
 
 #endif /* KLEE_SEARCHER_H */

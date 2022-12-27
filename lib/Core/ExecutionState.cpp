@@ -43,9 +43,7 @@ cl::opt<bool> DebugLogStateMerge(
 /***/
 
 std::uint32_t ExecutionState::nextID = 1;
-// other feature used in learch
-std::unordered_set<std::string> ExecutionState::allCoveredSource = std::unordered_set<std::string>();
-unsigned ExecutionState::genTestCases = 0;
+
 /***/
 
 StackFrame::StackFrame(KInstIterator _caller, KFunction *_kf)
@@ -73,10 +71,7 @@ StackFrame::~StackFrame() {
 /***/
 
 ExecutionState::ExecutionState(KFunction *kf)
-    : predicted_reward(0.0),
-      predicted(false),
-      pc(kf->instructions),
-      prevPC(pc) {
+    : pc(kf->instructions), prevPC(pc) {
   pushFrame(nullptr, kf);
   setID();
 }
@@ -90,16 +85,6 @@ ExecutionState::~ExecutionState() {
 }
 
 ExecutionState::ExecutionState(const ExecutionState& state):
-    // feature used in learch
-    features(state.features),
-    hidden_state(state.hidden_state),
-    predicted_reward(0.0),
-    predicted(state.predicted),
-    coveredSource(state.coveredSource),
-    coveredInsts(state.coveredInsts),
-    // used in subpath guided search
-    takenBranches(state.takenBranches),
-    // default in klee
     pc(state.pc),
     prevPC(state.prevPC),
     stack(state.stack),
@@ -120,7 +105,8 @@ ExecutionState::ExecutionState(const ExecutionState& state):
                              ? state.unwindingInformation->clone()
                              : nullptr),
     coveredNew(state.coveredNew),
-    forkDisabled(state.forkDisabled){
+    forkDisabled(state.forkDisabled),
+    brs(state.brs) {
   for (const auto &cur_mergehandler: openMergeStack)
     cur_mergehandler->addOpenState(this);
 }

@@ -1,74 +1,154 @@
 KLEE Symbolic Virtual Machine
 =============================
 
-关于klee的信息可以参考[webpage](http://klee.github.io/)和[klee git](https://github.com/klee/klee)
+[![Build Status](https://github.com/klee/klee/workflows/CI/badge.svg)](https://github.com/klee/klee/actions?query=workflow%3ACI)
+[![Build Status](https://api.cirrus-ci.com/github/klee/klee.svg)](https://cirrus-ci.com/github/klee/klee)
+[![Coverage](https://codecov.io/gh/klee/klee/branch/master/graph/badge.svg)](https://codecov.io/gh/klee/klee)
 
-这个repo基于klee-2.3 release改写，主要是将[learch](https://github.com/eth-sri/learch)的工作同步到最新2.3版本中，learch对klee的修改主要是添加了3个搜索策略:
+`KLEE` is a symbolic virtual machine built on top of the LLVM compiler
+infrastructure. Currently, there are two primary components:
 
-- subpath guided search(SGS): 详情可以参考[paper](https://www.cs.ucdavis.edu/~su/publications/oopsla13-pgse.pdf)，对应 `SubpathGuidedSearcher` 类。
+  1. The core symbolic virtual machine engine; this is responsible for
+     executing LLVM bitcode modules with support for symbolic
+     values. This is comprised of the code in lib/.
 
-- learch machine learning search: learch提出的基于机器学习的搜索策略，对应 `MLSearcher` 类。
+  2. A POSIX/Linux emulation layer oriented towards supporting uClibc,
+     with additional support for making parts of the operating system
+     environment symbolic.
 
-- get feature search: 对应 `GetFeaturesSearcher` 类，并不算是个严格意义上的搜索策略，主要目的是dump出每个state的feature信息。
+Additionally, there is a simple library for replaying computed inputs
+on native code (for closed programs). There is also a more complicated
+infrastructure for replaying the inputs generated for the POSIX/Linux
+emulation layer, which handles running native programs in an
+environment that matches a computed test input, including setting up
+files, pipes, environment variables, and passing command line
+arguments.
+
+For further information, see the [webpage](http://klee.github.io/).
+
+# Add support for postconditioned symbolic execution
+
+Content could refer to paper: [Eliminating Path Redundancy via
+Postconditioned Symbolic Execution](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7835264&tag=1)
+
+There is some difference between the implementation here and the algorithm described in original paper, the main motivation is reduce overhead:
+
+- We abandon the concept of control location.
+
+- Global variable $\Pi$(`Inst2PostCond`) here map `br` instruction to the its postcondition.
 
 
-# 修改信息
+The pesudo code of the algo is:
 
-### 2.3.1
 
-增加了对subpath guided search的支持，learch的支持准备在下个release添加，相比原始klee-2.3修改包括:
+```cpp
+while (!states.empty()) {
+    state = selectStates(); //DFS here
+    // add constraint check, if satisfy already, terminate execution
+    e = state.brs[-1];
+    // if Inst2PostCond[e] must be true under state.constraints, then there are no need to further explore this state
+    if (satisfy(state.constraints && ~Inst2PostCond[e])) {
+        // normal symbolic execution process
+    }
+    else
+        terminateEarly(state);
+}
+```
 
-- 在 `UserSearcher.cpp`，`Searcher.cpp`，`Searcher.h` 中添加了Subpath-guided search相关类，已经相关命令行参数
+When taken a new state from state list, executor will first check whether the postcondition corresponding to this state has already cover the path of this state, if so, terminate early .Taken the example from the original paper:
 
-- 在 `ExecutionState` 类，`Executor` 类中添加相关成员变量支持（注意初始化）
+```cpp
+int main(){
+    int a, b, c, res;
+    klee_make_symbolic(&a,sizeof(a),"a");
+    klee_make_symbolic(&b,sizeof(b),"b");
+    klee_make_symbolic(&c,sizeof(c),"c");
+    
+    if (a <= 0)
+        a = a + 10;
+    else
+        a = a - 10;
+    
+    if (a <= b)
+        res = a - b;
+    else
+        res = a + b;
+    
+    if (res > c)
+        res = 1;
+    else
+        res = 0;
+    return 0;
+}
+```
 
-### 2.3.2
+The control-flow graph is:
 
-release 2(2.3.2)相比2.3.1添加了对ML Search的支持，目前只支持给定pytorch model，MLSearcher会调用python解释器加载model进行state reward预测。
-需要注意的是python代码必须和[model.py](https://github.com/eth-sri/learch/blob/master/learch/model.py) 保持一致。与2.3.1相比，klee命令行程序多出了以下选项
+```mermaid
+flowchat
+st=>start: Entry
+e=>end: return 0;
+cond1=>condition: a <= 0
+op11=>operation: a = a + 10;
+op12=>operation: a = a - 10;
 
-- `--feature-extract`: bool类型，是否提取特征，如果使用ml搜索策略必须开启
+cond2=>condition: a <= b
+op21=>operation: res = a - b;
+op22=>operation: res = a + b;
 
-- `--search` 参数中多了 `ml` 选项，即机器学习搜索策略
+cond3=>condition: res > c
+op31=>operation: res = 1
+op32=>operation: res = 0
 
-- `--model-type=<value>`: 模型类型，有 `feedforward`, `linear`, `rnn` 3种选项
 
-- `--model-path=<value>`: `<value>` 为pytorch模型保存路径
+st->cond1
+cond1(yes)->op11
+cond1(no)->op12
+op11->cond2
+op12->cond2
 
-- `--script-path=<value>`: `<value>` 为python解释器路径，不设置的话会使用系统默认的
+cond2(yes)->op21
+cond2(no)->op22
+op21->cond3
+op22->cond3
 
-编译klee的时候需要添加参数 `-DPYTHON_INCLUDE_DIRS=<python_home>/include/pythonx.x -DLIB_PYTHON=<python_home>/lib/xx/libpythonx.x.so ..`，这里的python解释器路径应与 `--script-path` 中的保持一致
+cond3(yes)->op31
+cond3(no)->op32
+op31->e
+op32->e
+```
 
-示例，假设我用anaconda3，根目录是 <conda_dir>，用到一个名为learch的虚拟环境，python版本3.8
+Normally, there are 3 conditions (`c1: a<=0, c2: a<=b, c3: res>c`), when using DFS search
 
-- 编译的时候添加参数 `-DPYTHON_INCLUDE_DIRS=<conda_dir>/envs/learch/include/python3.8 -DLIB_PYTHON=<conda_dir>/envs/learch/lib/libpython3.8.so ..`，这一步cmake可能会报出警告，说 `<conda_dir>/envs/learch/lib/` 中存在的库可能会与 `/usr/lib` 冲突，不过问题不大，觉得不妥可以把 `libpython3.8.so` 复制到另一个空文件夹下。
+- When come across `a <= 0`, state will fork into state1 and state2.
 
-- 运行的时候 `--script-path=<conda_dir>/envs/learch`。
+- When state1 come across `a <= b`, state1 will fork into state11 and state12. Now state2 is on the bottom of state list.
 
-`MLSearcher` 在当前版本运行存在一些问题，其它搜索策略（包括subpath）运行正常，原因在于 `Py_initialize` 会和klee posix runtime存在冲突，因此 `MLSearcher` 只能应用于不需要posix的示例。
+- When state11 come across `res > c`, state11 will fork into state111 and state112. Now state12 and state2 are on the bottom of state list.
 
-### 2.3.3
+- When state111 and state112 terminates(1-3-5 and 1-3-6 in original paper). `Inst2PostCond = {c1: a<=0 & a+10<=b, c2: a+10<=b, c3:true}`
 
-2.3.3相比2.3.2改用[NumCpp](https://github.com/dpilger26/NumCpp/)实现机器学习，将learch pytorch模型转化为numpy格式可参考[repo](https://github.com/for-just-we/numpyLearch)，运行时 `--model-type=<value>`, `--script-path=<value>` 选项取消了，只支持feedforward模型，`model-path` 为保存模型文件的文件夹，[repo](https://github.com/for-just-we/numpyLearch)中对应 `model/feedfoward`， 因为NumCpp不支持npz格式，所以每个矩阵单独保存了一个文件。编译的时候需要添加NumCpp头文件和boost头文件，因为NumCpp和boost都是纯头文件库，所以不需要额外链接其它库，cmake的时候
+- When state12 start executing, executor will evaluate whether `state12.cond & ~Inst2PostCond[c2]` could satisfy. If so, continue this process until fork into state121 and state122.
 
-- `-DNUMCPP_INCLUDE_DIR=<NumCppRoot>/include`: `<NumCppRoot>` 是NumCpp源码根目录
+- When state121 start executing, execute will evaluate whether `state121.cond & ~Inst2PostCond[c3]` could satisfy. Not, terminateEarly and update postconditions.
 
-- `-DBOOST_INCLUDE_DIR=<BoostRoot>`: `<BoostRoot>` 是Boost源码根目录
+- state122 will be the same.
 
-在使用的时候，跟2.3.2相比：
 
-- `--script-path=<value>` 和 `--model-type=<value>` 不再需要
 
-- `--model-path` 是一个文件夹路径，文件夹下应保存8个模型文件: `mean, scale, bias1, linear1, bias2, linear2, bias3, linear3`
 
-### 2.3.4
+- `Expr::createIsZero` can be used to create `not` condition.
 
-相比2.3.3添加了优化。具体来说, `Executor` 类会保存一个 `featureStates` 变量表示每次选取状态时的待选集合，在 `states` 集合中不是所有的状态都会被作为候选。同时，reward计算是批次进行不是单个进行
+Cite
 
-### 2.3.5
-
-相比2.3.4：
-
-- 命令行选项添加了 `--feature-dump` 参数，将每个状态提取的特征导出为csv文件，该csv文件和ktest文件放在同一个目录下
-
-- 特征提取的工作不再由 `MLSearcher` 完成，由 `GetFeaturesSearcher` 完成
+```
+@article{2018Eliminating,
+  title={Eliminating Path Redundancy via Postconditioned Symbolic Execution},
+  author={ Yi, Q.  and  Yang, Z.  and  Guo, S.  and  Chao, W.  and  Chen, Z. },
+  journal={IEEE Transactions on Software Engineering},
+  volume={44},
+  number={99},
+  pages={25-43},
+  year={2018},
+}
+```

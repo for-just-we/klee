@@ -98,12 +98,9 @@ protected:
 public:
   virtual ~Interpreter() {}
 
-  static void handleGenerateTestCase(const ExecutionState &state);
-
   static Interpreter *create(llvm::LLVMContext &ctx,
                              const InterpreterOptions &_interpreterOpts,
-                             InterpreterHandler *ih,
-                             bool featureExtract = false);
+                             InterpreterHandler *ih);
 
   /// Register the module to be executed.
   /// \param modules A list of modules that should form the final
@@ -168,9 +165,6 @@ public:
                                std::map<const std::string*, std::set<unsigned> > &res) = 0;
 };
 
-bool getStateCoverNew(const ExecutionState& state);
-
-std::vector<std::pair<long, std::vector<double>>> getStateFeature(const ExecutionState& state);
 } // End klee namespace
 
 #endif /* KLEE_INTERPRETER_H */

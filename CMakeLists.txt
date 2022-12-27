@@ -11,10 +11,6 @@
 # Minimum CMake version and policies
 ###############################################################################
 cmake_minimum_required(VERSION 3.9.0)
-
-include_directories(${NUMCPP_INCLUDE_DIR})
-include_directories(${BOOST_INCLUDE_DIR})
-
 if (POLICY CMP0054)
   cmake_policy(SET CMP0054 NEW)
 endif()

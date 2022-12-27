@@ -47,14 +47,8 @@ cl::list<Searcher::CoreSearchType> CoreSearch(
                    "use NURS with Instr-Count"),
         clEnumValN(Searcher::NURS_CPICnt, "nurs:cpicnt",
                    "use NURS with CallPath-Instr-Count"),
-        clEnumValN(Searcher::NURS_QC, "nurs:qc", "use NURS with Query-Cost"),
-        clEnumValN(Searcher::SGS_1, "sgs:1", "length 1 - Subpath-Guided Search"),
-        clEnumValN(Searcher::SGS_2, "sgs:2", "length 2 - Subpath-Guided Search"),
-        clEnumValN(Searcher::SGS_4, "sgs:4", "length 4 - Subpath-Guided Search"),
-        clEnumValN(Searcher::SGS_8, "sgs:8", "length 8 - Subpath-Guided Search"),
-        clEnumValN(Searcher::ML, "ml", "Machine Learning Search")),
+        clEnumValN(Searcher::NURS_QC, "nurs:qc", "use NURS with Query-Cost")),
     cl::cat(SearchCat));
-
 
 cl::opt<bool> UseIterativeDeepeningTimeSearch(
     "use-iterative-deepening-time-search",
@@ -85,12 +79,6 @@ cl::opt<std::string> BatchTime(
     cl::init("5s"),
     cl::cat(SearchCat));
 
-// add support for machine learning based search
-cl::opt<std::string> ModelPath(
-     "model-path",
-     cl::desc("Path of the machine learning model"),
-     cl::init(""),
-     cl::cat(SearchCat));
 } // namespace
 
 void klee::initializeSearchOptions() {
@@ -111,12 +99,11 @@ bool klee::userSearcherRequiresMD2U() {
           std::find(CoreSearch.begin(), CoreSearch.end(), Searcher::NURS_CovNew) != CoreSearch.end() ||
           std::find(CoreSearch.begin(), CoreSearch.end(), Searcher::NURS_ICnt) != CoreSearch.end() ||
           std::find(CoreSearch.begin(), CoreSearch.end(), Searcher::NURS_CPICnt) != CoreSearch.end() ||
-          std::find(CoreSearch.begin(), CoreSearch.end(), Searcher::NURS_QC) != CoreSearch.end() ||
-          std::find(CoreSearch.begin(), CoreSearch.end(), Searcher::ML) != CoreSearch.end());
+          std::find(CoreSearch.begin(), CoreSearch.end(), Searcher::NURS_QC) != CoreSearch.end());
 }
 
 
-Searcher *getNewSearcher(Searcher::CoreSearchType type, RNG &rng, PTree &processTree, Executor &executor) {
+Searcher *getNewSearcher(Searcher::CoreSearchType type, RNG &rng, PTree &processTree) {
   Searcher *searcher = nullptr;
   switch (type) {
     case Searcher::DFS: searcher = new DFSSearcher(); break;
@@ -130,13 +117,6 @@ Searcher *getNewSearcher(Searcher::CoreSearchType type, RNG &rng, PTree &process
     case Searcher::NURS_ICnt: searcher = new WeightedRandomSearcher(WeightedRandomSearcher::InstCount, rng); break;
     case Searcher::NURS_CPICnt: searcher = new WeightedRandomSearcher(WeightedRandomSearcher::CPInstCount, rng); break;
     case Searcher::NURS_QC: searcher = new WeightedRandomSearcher(WeightedRandomSearcher::QueryCost, rng); break;
-    // support subpath guided search
-    case Searcher::SGS_1: searcher = new SubpathGuidedSearcher(executor, 0); break;
-    case Searcher::SGS_2: searcher = new SubpathGuidedSearcher(executor, 1); break;
-    case Searcher::SGS_4: searcher = new SubpathGuidedSearcher(executor, 2); break;
-    case Searcher::SGS_8: searcher = new SubpathGuidedSearcher(executor, 3); break;
-    // add support for machine learning based search
-    case Searcher::ML: searcher = new MLSearcher(executor, ModelPath); break;
   }
 
   return searcher;
@@ -144,20 +124,17 @@ Searcher *getNewSearcher(Searcher::CoreSearchType type, RNG &rng, PTree &process
 
 Searcher *klee::constructUserSearcher(Executor &executor) {
 
-  Searcher *searcher = getNewSearcher(CoreSearch[0], executor.theRNG, *executor.processTree, executor);
+  Searcher *searcher = getNewSearcher(CoreSearch[0], executor.theRNG, *executor.processTree);
 
   if (CoreSearch.size() > 1) {
     std::vector<Searcher *> s;
     s.push_back(searcher);
 
     for (unsigned i = 1; i < CoreSearch.size(); i++)
-      s.push_back(getNewSearcher(CoreSearch[i], executor.theRNG, *executor.processTree, executor));
+      s.push_back(getNewSearcher(CoreSearch[i], executor.theRNG, *executor.processTree));
 
     searcher = new InterleavedSearcher(s);
   }
-
-  if (executor.getFeatureExtract())
-    searcher = new GetFeaturesSearcher(searcher, executor);
 
   if (UseBatchingSearch) {
     searcher = new BatchingSearcher(searcher, time::Span(BatchTime),

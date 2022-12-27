@@ -21,15 +21,10 @@
 #include "klee/Solver/Solver.h"
 #include "klee/System/Time.h"
 
-#include "llvm/IR/BasicBlock.h"
-
 #include <map>
 #include <memory>
 #include <set>
 #include <vector>
-#include <unordered_set>
-#include <unordered_map>
-#include <deque>
 
 namespace klee {
 class Array;
@@ -40,9 +35,6 @@ struct KInstruction;
 class MemoryObject;
 class PTreeNode;
 struct InstructionInfo;
-
-typedef std::deque<std::pair<unsigned, unsigned> > subpath_ty;
-typedef std::map<subpath_ty, unsigned long> subpathCount_ty;
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const MemoryMap &mm);
 
@@ -164,21 +156,6 @@ private:
 public:
   using stack_ty = std::vector<StackFrame>;
 
-  // add support for machine learning based search
-  std::vector<double> feature;
-  std::vector<std::pair<long, std::vector<double>>> features;
-  std::vector<double> hidden_state;
-  double predicted_reward; // reward for a state in learch
-  bool predicted; // avoid duplicated calculation for learch weight
-  // other feature used in learch
-  static std::unordered_set<std::string> allCoveredSource;
-  static unsigned genTestCases;
-
-  std::unordered_set<std::string> coveredSource;
-  std::unordered_set<unsigned> coveredInsts;
-
-  // Either the current subpath or the current path
-  subpath_ty takenBranches;
   // Execution - Control Flow specific
 
   /// @brief Pointer to instruction to be executed after the current
@@ -263,6 +240,8 @@ public:
   /// @brief Disables forking for this state. Set by user code
   bool forkDisabled = false;
 
+  /// visited branch instructions, used for postcondition symbolic execution.
+  std::vector<std::pair<llvm::Instruction*, ref<Expr>>> brs;
 
 public:
 #ifdef KLEE_UNITTEST
