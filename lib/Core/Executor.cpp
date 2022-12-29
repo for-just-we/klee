@@ -2176,9 +2176,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         statsTracker->markBranchVisited(branches.first, branches.second);
 
       if (branches.first)
-        transferToBasicBlock(bi->getSuccessor(0), bi->getParent(), *branches.first);
+        if (!checkPostcondition(*branches.first))
+          transferToBasicBlock(bi->getSuccessor(0), bi->getParent(), *branches.first);
       if (branches.second)
-        transferToBasicBlock(bi->getSuccessor(1), bi->getParent(), *branches.second);
+        if (!checkPostcondition(*branches.second))
+          transferToBasicBlock(bi->getSuccessor(1), bi->getParent(), *branches.second);
     }
     break;
   }
@@ -3527,27 +3529,6 @@ void Executor::run(ExecutionState &initialState) {
   while (!states.empty() && !haltExecution) {
     ExecutionState &state = searcher->selectState();
 
-    // add constraint check, if satisfy already, terminate execution
-    if (!state.brs.empty()) {
-      Instruction* brIns = state.brs.back().first;
-      // if current branch has postcondition
-      if (Inst2PostCond.count(brIns) != 0) {
-        // a very complex expr
-        Solver::Validity res;
-        time::Span timeout = coreSolverTimeout;
-        solver->setTimeout(timeout);
-        // evaluate the value for state.constraints && ~Inst2PostCond[e]
-        bool success = solver->evaluate(state.constraints, exprBuilder->Not(Inst2PostCond[brIns]), res,
-                                        state.queryMetaData);
-        solver->setTimeout(time::Span());
-
-        // The branch has already been covered
-        if (res == Solver::False){
-          terminateStateEarly(state, "Post-conditon already .", StateTerminationType::Interrupted);
-        }
-      }
-    }
-
     KInstruction *ki = state.pc;
     stepInstruction(state);
 
@@ -4780,6 +4761,31 @@ void Executor::updatePostcondition(ExecutionState &state) {
       newPostCond = exprBuilder->Or(Inst2PostCond[i], newPostCond);
     Inst2PostCond[i] = newPostCond;
   }
+}
+
+bool Executor::checkPostcondition(ExecutionState &state) {
+   // add constraint check, if satisfy already, terminate execution
+   if (!state.brs.empty()) {
+      Instruction* brIns = state.brs.back().first;
+      // if current branch has postcondition
+      if (Inst2PostCond.count(brIns) != 0) {
+        // a very complex expr
+        Solver::Validity res;
+        time::Span timeout = coreSolverTimeout;
+        solver->setTimeout(timeout);
+        // evaluate the value for state.constraints && ~Inst2PostCond[e]
+        bool success = solver->evaluate(state.constraints, exprBuilder->Not(Inst2PostCond[brIns]), res,
+                                          state.queryMetaData);
+        solver->setTimeout(time::Span());
+
+        // The branch has already been covered
+        if (res == Solver::False) {
+          terminateStateEarly(state, "Post-conditon already .", StateTerminationType::Interrupted);
+          return true;
+        }
+      }
+   }
+   return false;
 }
 
 ///

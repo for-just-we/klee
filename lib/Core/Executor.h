@@ -558,6 +558,9 @@ public:
 
   // add support for postcondition symbolic execution
   void updatePostcondition(ExecutionState &state);
+
+  // add support for postcondition symbolic execution
+  bool checkPostcondition(ExecutionState &state);
 };
   
 } // End klee namespace
