@@ -1182,12 +1182,6 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     ref<Expr> nonCond = Expr::createIsZero(condition);
     addConstraint(*falseState, nonCond);
 
-    // add support for postcondition symbolic execution
-    if (i != nullptr) {
-      trueState->brs.push_back(std::make_pair(i, condition));
-      falseState->brs.push_back(std::make_pair(i, nonCond));
-    }
-
     // Kinda gross, do we even really still want this option?
     if (MaxDepth && MaxDepth<=trueState->depth) {
       terminateStateEarly(*trueState, "max-depth exceeded.", StateTerminationType::MaxDepth);
@@ -2175,12 +2169,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       if (statsTracker && state.stack.back().kf->trackCoverage)
         statsTracker->markBranchVisited(branches.first, branches.second);
 
+      if (branches.first && branches.second) {
+        branches.first->shouldBeCheck = true;
+        branches.second->shouldBeCheck = true;
+      }
+
       if (branches.first)
-        if (!checkPostcondition(*branches.first))
-          transferToBasicBlock(bi->getSuccessor(0), bi->getParent(), *branches.first);
+        transferToBasicBlock(bi->getSuccessor(0), bi->getParent(), *branches.first);
       if (branches.second)
-        if (!checkPostcondition(*branches.second))
-          transferToBasicBlock(bi->getSuccessor(1), bi->getParent(), *branches.second);
+        transferToBasicBlock(bi->getSuccessor(1), bi->getParent(), *branches.second);
     }
     break;
   }
@@ -2253,6 +2250,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     assert(targets.size() == branches.size());
     for (std::vector<ExecutionState *>::size_type k = 0; k < branches.size(); ++k) {
       if (branches[k]) {
+        if (branches.size() > 1)
+          branches[k]->shouldBeCheck = true;
         transferToBasicBlock(targets[k], bi->getParent(), *branches[k]);
       }
     }
@@ -2370,8 +2369,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
                                                ie = bbOrder.end();
            it != ie; ++it) {
         ExecutionState *es = *bit;
-        if (es)
+        if (es) {
+          if (bbOrder.size() > 1)
+            es->shouldBeCheck = true;
           transferToBasicBlock(*it, bb, *es);
+        }
         ++bit;
       }
     }
@@ -3528,6 +3530,24 @@ void Executor::run(ExecutionState &initialState) {
   // main interpreter loop
   while (!states.empty() && !haltExecution) {
     ExecutionState &state = searcher->selectState();
+
+    // add support for postcondition symbolic execution
+    if (state.shouldAddConstraint) {
+      std::pair<llvm::Instruction*, llvm::Instruction*> loc = std::make_pair(state.prevPC->inst, state.pc->inst);
+      unsigned int count = state.loc2count[loc];
+      state.loc2count[loc]++;
+      state.brs.emplace_back(ControlLocation(loc, count),
+                             state.inst2cond[state.prevPC->inst]);
+      state.shouldAddConstraint = false;
+    }
+
+    if (state.shouldBeCheck) {
+      bool result = checkPostcondition(state);
+      if (result)
+        terminateStateEarly(state, "Post-conditon already .", StateTerminationType::Interrupted, true);
+      else
+        state.shouldBeCheck = false;
+    }
 
     KInstruction *ki = state.pc;
     stepInstruction(state);
@@ -4746,43 +4766,62 @@ void Executor::dumpStates() {
 }
 
 
-void Executor::updatePostcondition(ExecutionState &state) {
-  ref<Expr> wp = exprBuilder->True();
-  std::vector<std::pair<llvm::Instruction*, ref<Expr>>>::reverse_iterator it;
-
+void Executor::updatePostcondition(ExecutionState &state, bool isPruned) {
+  ref<Expr> wp;
+  if (!isPruned)
+    wp = exprBuilder->True();
+  else {
+    if (!state.brs.empty() && Inst2PostCond.count(state.brs.back().first) != 0) {
+      wp = Inst2PostCond[state.brs.back().first];
+    }
+    else
+      wp = exprBuilder->True();
+  }
+  std::vector<std::pair<ControlLocation, ref<Expr>>>::reverse_iterator it;
+  ConstraintSet emptySet;
+  // errs() << "==================================================\n";
   for (it = state.brs.rbegin(); it != state.brs.rend(); ++it) {
-    Instruction *i = it->first;
+    ControlLocation loc = it->first;
     ref<Expr> curCond = it->second;
-    // wp = wp && curCond
-    wp = exprBuilder->And(wp, curCond);
-    // Inst2Postcond[i] = Inst2Postcond[i] or wp
+
+//    errs() << "prev instruction-------------------------\n";
+//    loc.instEdge.first->dump();
+//    errs() << "postcondition is------------------------\n";
+//    curCond->dump();
+
     ref<Expr> newPostCond(wp);
-    if (Inst2PostCond.count(i) != 0)
-      newPostCond = exprBuilder->Or(Inst2PostCond[i], newPostCond);
-    Inst2PostCond[i] = newPostCond;
+    if (Inst2PostCond.count(loc) != 0)
+      newPostCond = exprBuilder->Or(Inst2PostCond[loc], newPostCond);
+    Solver::Validity res;
+    solver->evaluate(emptySet, newPostCond, res, state.queryMetaData);
+    if (res == Solver::True)
+      newPostCond = exprBuilder->True();
+    Inst2PostCond[loc] = newPostCond;
+
+    // wp = wp && curCond
+    wp = exprBuilder->And(newPostCond, curCond);
+    // Inst2Postcond[i] = Inst2Postcond[i] or wp
   }
 }
 
 bool Executor::checkPostcondition(ExecutionState &state) {
    // add constraint check, if satisfy already, terminate execution
    if (!state.brs.empty()) {
-      Instruction* brIns = state.brs.back().first;
+      ControlLocation loc = state.brs.back().first;
       // if current branch has postcondition
-      if (Inst2PostCond.count(brIns) != 0) {
+      if (Inst2PostCond.count(loc) != 0) {
         // a very complex expr
         Solver::Validity res;
         time::Span timeout = coreSolverTimeout;
         solver->setTimeout(timeout);
-        // evaluate the value for state.constraints && ~Inst2PostCond[e]
-        bool success = solver->evaluate(state.constraints, exprBuilder->Not(Inst2PostCond[brIns]), res,
+
+        bool success = solver->evaluate(state.constraints, exprBuilder->Not(Inst2PostCond[loc]), res,
                                           state.queryMetaData);
         solver->setTimeout(time::Span());
 
         // The branch has already been covered
-        if (res == Solver::False) {
-          terminateStateEarly(state, "Post-conditon already .", StateTerminationType::Interrupted);
+        if (res == Solver::False)
           return true;
-        }
       }
    }
    return false;

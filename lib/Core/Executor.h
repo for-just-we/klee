@@ -105,7 +105,7 @@ public:
   RNG theRNG;
 
 private:
-  std::map<llvm::Instruction*, ref<Expr>> Inst2PostCond;
+  std::map<ControlLocation, ref<Expr>> Inst2PostCond;
   ExprBuilder* exprBuilder;
 
   std::unique_ptr<KModule> kmodule;
@@ -415,7 +415,7 @@ private:
       llvm::Instruction** lastInstruction);
 
   /// Remove state from queue and delete state
-  void terminateState(ExecutionState &state);
+  void terminateState(ExecutionState &state, bool isPruned = false);
 
   /// Call exit handler and terminate state normally
   /// (end of execution path)
@@ -424,7 +424,7 @@ private:
   /// Call exit handler and terminate state early
   /// (e.g. due to state merging or memory pressure)
   void terminateStateEarly(ExecutionState &state, const llvm::Twine &message,
-                           StateTerminationType terminationType);
+                           StateTerminationType terminationType, bool isPruned = false);
 
   /// Call error handler and terminate state in case of program errors
   /// (e.g. free()ing globals, out-of-bound accesses)
@@ -557,7 +557,7 @@ public:
   void setMergingSearcher(MergingSearcher *ms) { mergingSearcher = ms; };
 
   // add support for postcondition symbolic execution
-  void updatePostcondition(ExecutionState &state);
+  void updatePostcondition(ExecutionState &state, bool isPruned = false);
 
   // add support for postcondition symbolic execution
   bool checkPostcondition(ExecutionState &state);

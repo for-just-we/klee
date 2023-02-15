@@ -106,7 +106,11 @@ ExecutionState::ExecutionState(const ExecutionState& state):
                              : nullptr),
     coveredNew(state.coveredNew),
     forkDisabled(state.forkDisabled),
-    brs(state.brs) {
+    brs(state.brs),
+    shouldBeCheck(state.shouldBeCheck),
+    inst2cond(state.inst2cond),
+    shouldAddConstraint(state.shouldAddConstraint),
+    loc2count(state.loc2count) {
   for (const auto &cur_mergehandler: openMergeStack)
     cur_mergehandler->addOpenState(this);
 }
@@ -352,6 +356,10 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
 void ExecutionState::addConstraint(ref<Expr> e) {
   ConstraintManager c(constraints);
   c.addConstraint(e);
+
+  // add support for postcondition symbolic execution
+  shouldAddConstraint = true;
+  inst2cond[prevPC->inst] = e;
 }
 
 void ExecutionState::addCexPreference(const ref<Expr> &cond) {

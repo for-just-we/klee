@@ -21,6 +21,8 @@
 #include "klee/Solver/Solver.h"
 #include "klee/System/Time.h"
 
+#include "klee/Customized/ControlLocation.h"
+
 #include <map>
 #include <memory>
 #include <set>
@@ -241,7 +243,16 @@ public:
   bool forkDisabled = false;
 
   /// visited branch instructions, used for postcondition symbolic execution.
-  std::vector<std::pair<llvm::Instruction*, ref<Expr>>> brs;
+  std::vector<std::pair<ControlLocation, ref<Expr>>> brs;
+  /// should check this state?
+  bool shouldBeCheck = false;
+
+  /// map a instruction to the branch condition
+  std::map<llvm::Instruction*, ref<Expr>> inst2cond;
+  ///
+  bool shouldAddConstraint = false;
+  /// map a location to the times it appears
+  std::map<std::pair<llvm::Instruction*, llvm::Instruction*>, unsigned int> loc2count;
 
 public:
 #ifdef KLEE_UNITTEST
